@@ -1,0 +1,142 @@
+select * from dbo.[air crashes]
+
+ALTER TABLE dbo.[air crashes] ADD crash_date DATE;
+UPDATE dbo.[air craches]
+SET crash_date =TRY_CONVERT(DATE, CONCAT ( Year,'-',month,'-',day));
+
+
+select distinct country_region
+from dbo.[air crashes] 
+
+--cleaning country_region colomn 
+--handle nulls 
+
+UPDATE dbo.[air crashes]
+SET Country_Region = NULL
+WHERE Country_Region IS NULL 
+OR    Country_Region IN ('-', 'N/A', 'NULL') ;
+
+--Separate numeric codes from text
+
+ALTER TABLE dbo.[air crashes] ADD country_code INT ;
+UPDATE dbo.[air crashes]
+SET country_code =TRY_CAST(country_region AS INT)
+WHERE ISNUMERIC(Country_Region) = 1;
+
+ --Map numeric codes to countries
+ UPDATE [dbo].[air crashes]
+SET country_region = 
+    CASE 
+        WHEN country_region = '10' THEN 'UNITED STATES'
+        WHEN country_region = '100' THEN 'UNITED KINGDOM'
+        WHEN country_region = '116' THEN 'RUSSIA'
+        WHEN country_region = '325' THEN 'BRAZIL'
+        WHEN country_region = '570' THEN 'CANADA'
+        WHEN country_region = '800' THEN 'CHINA'
+        WHEN country_region = '110' THEN 'BULGARIA'
+        WHEN country_region = '18'  THEN 'AMERICAN SAMOA'
+        ELSE country_region
+    END
+WHERE ISNUMERIC(country_region) = 1;
+
+--Standardize text casing and trim
+UPDATE dbo.[air crashes]
+SET Country_Region = UPPER(LTRIM(RTRIM(country_region)))
+WHERE ISNUMERIC(country_region) =0;
+
+--Correct common misspellings
+UPDATE dbo.[air crashes]
+SET country_region =CASE 
+WHEN country_region IN ('AFGHANSTAN') THEN 'AFGHANISTAN'
+WHEN country_region IN ('ARGNTINA','ARGENTINADE') THEN 'ARGENTINA'
+WHEN country_region IN ('ALASKA','ALAKSA','ALAKSKA','AKALASKA') THEN 'UNITED STATES'
+WHEN country_region IN ('BOLIVA','BOLIVIANO') THEN 'BOLIVIA'
+WHEN country_region IN ('BUGARIA','BULGERIA') THEN 'BULGARIA'
+WHEN country_region IN ('HATI') THEN 'HAITI'
+WHEN country_region IN ('HUNARY') THEN 'HUNGARY'
+WHEN country_region IN ('INODNESIA','INDONESIA     SARMI') THEN 'INDONESIA'
+WHEN country_region IN ('KAZAKASTAN') THEN 'KAZAKHSTAN'
+WHEN country_region IN ('MEXIC') THEN 'MEXICO'
+WHEN country_region IN ('MORROCO') THEN 'MOROCCO'
+WHEN country_region IN ('NAPAL') THEN 'NEPAL'
+WHEN country_region IN ('PHILIPINES','PHILIPPINE','PHILLIPINES') THEN 'PHILIPPINES'
+WHEN country_region IN ('YUGOSALVIA') THEN 'YUGOSLAVIA'
+ELSE country_region
+END
+WHERE ISNUMERIC(country_region) = 0;
+
+
+
+--Normalize regions/states to parent countries
+UPDATE dbo.[air crashes]
+SET country_region = CASE
+    -- United States
+    WHEN country_region IN ('ALASKA','CALIFORNIA','TEXAS','FLORIDA','ILLINOIS','OHIO','MICHIGAN',
+                            'MINNESOTA','MISSISSIPPI','MISSOURI','NEBRASKA','NEVADA','OREGON',
+                            'WASHINGTON','WYOMING','UTAH','VERMONT','VIRGINIA','KANSAS','COLORADO',
+                            'CONNECTICUT','DELAWARE','GEORGIA','HAWAII','INDIANA','IOWA','KENTUCKY',
+                            'LOUISIANA','MAINE','MARYLAND','MASSACHUSETTS','MONTANA','NEWFOUNDLANDU.S.') 
+         THEN 'UNITED STATES'
+    -- Canada
+    WHEN country_region IN ('ONTARIO','QUEBEC','MANITOBA','SASKATCHEWAN','ALBERTA','BRITISH','NWT',
+                           'NUNAVUT','YUKON','BC') 
+         THEN 'CANADA'
+    -- Germany
+    WHEN country_region IN ('BAVARIA','GERMANY?','SAXONY') THEN 'GERMANY'
+
+    -- United Kingdom
+    WHEN country_region IN ('SCOTLAND','ENGLAND','ENGLAND?','WALES','NORTHERN','UKBRITISH') 
+         THEN 'UNITED KINGDOM'
+    -- Spain
+    WHEN country_region IN ('MADRID','SPAIN MORON','CATALINA') THEN 'SPAIN'
+    ELSE country_region
+END;
+
+
+--Remove non-country noise
+UPDATE dbo.[air crashes]
+SET country_region = NULL
+WHERE country_region IN ('AIR','AIRLINES','CARGO','CONDOR','ATLANTIC','CENTRAL','DEMOCRATIC',
+                         'AMERICAN','FRENCH','DUTCH','BLACK','GULF','PACIFIC');
+
+
+
+-- Clean location column
+   
+ UPDATE dbo.[air crashes]
+SET location = UPPER(LTRIM(RTRIM(location)));
+
+
+ --Clean operator column
+
+UPDATE dbo.[air crashes]
+SET operator = UPPER(LTRIM(RTRIM(operator)));
+
+-- Normalize airline names
+UPDATE dbo.[air crashes]
+SET operator = REPLACE(operator,'AIRLINES','AIRLINE');
+
+
+
+ --Clean aircraft_Manufacturer column
+ 
+UPDATE dbo.[air crashes]
+SET aircraft_Manufacturer = CASE
+    WHEN aircraft_Manufacturer LIKE '%BOEING%' THEN 'BOEING'
+    WHEN aircraft_Manufacturer LIKE '%AIRBUS%' THEN 'AIRBUS'
+    WHEN aircraft_Manufacturer LIKE '%CESSNA%' THEN 'CESSNA'
+    ELSE UPPER(LTRIM(RTRIM(aircraft_Manufacturer)))
+END;
+
+
+--Remove duplicates
+WITH DuplicateRows AS (
+    SELECT *,
+           ROW_NUMBER() OVER (
+               PARTITION BY crash_date, location, operator, aircraft_Manufacturer,  fatalities_air,  country_region
+               ORDER BY (SELECT NULL)
+           ) AS row_num
+    FROM dbo.[air crashes]
+)
+DELETE FROM DuplicateRows
+WHERE row_num > 1;
