@@ -1,13 +1,14 @@
-Air Crashes SQL Cleaning
+# Air Crashes SQL Cleaning
 
-This repository contains SQL scripts to clean and normalize air crash datasets.
+This project contains SQL scripts used to clean, standardize, and normalize an air‑crash dataset.
+The goal is to transform messy, inconsistent data into a reliable, analysis‑ready table.
 
-Contents
+### Contents
 - `scripts/clean_air_crashes.sql`: removes nulls, fixes inconsistent values
 - `scripts/normalize_dates.sql`: standardizes date formats
 - `scripts/remove_duplicates.sql`: deduplicates records
 
-Usage
+### Usage
 Run scripts in order:
 1. `clean_air_crashes.sql`
 2. `normalize_dates.sql`
